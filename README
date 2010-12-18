@@ -1,0 +1,27 @@
+An implementation of the Route 53 API in Sinatra for em-dns-server
+
+required gems:
+
+  sinatra
+  aws-auth       -  http://github.com/nricciar/aws-auth
+  em-dns-server  -  http://github.com/nricciar/em-dns-server
+
+setup:
+
+  cp route53.yml.example route53.yml (and edit as needed)
+  rake auth
+
+usage:
+
+  rackup config.ru -p 9967
+
+  zone files are saved in the zones directory.  point em-dns-server
+  to this directory by supplying the ZONE_FILES environment variable
+  at runtime.
+
+  ZONE_FILES=/path/to/zones/ em-dns-server start
+
+  em-dns-manager also has a web admin your default username and
+  password are admin:testp@ss
+
+  http://localhost:9967/control/
