@@ -62,7 +62,7 @@ module AWS
       address = params[:value]
       @errors = []
 
-      if name !~ /^([-\w\d]+((\.[-\w\d]+)*)?\.?)$/
+      if name !~ /^(|\*|\*.[-\w\d\.]+|[-\w\d\.]+|\s*\@|\.|[-\w\d]+(((\.[-\w\d]+)*)\.?)?)$/
         @errors << "invalid name"
       end
       if address !~ /^([-\w\d]+((\.[-\w\d]+)*)?\.?)$/

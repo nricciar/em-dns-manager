@@ -4,6 +4,8 @@ require 'rubygems'
 require 'aws-auth'
 require 'api'
 
+AWS::Admin.home_page = "/control/dns"
+
 # AWS Base
 use AWSAuth::Base, File.expand_path(File.join(File.dirname(__FILE__),'route53.yml'))
 map '/control' do
