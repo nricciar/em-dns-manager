@@ -1,6 +1,6 @@
 ---
 # aws-auth database information
-:db:
+:auth:
   :database: db/users.db
   :adapter: sqlite3
 
