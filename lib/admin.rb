@@ -89,7 +89,6 @@ module AWS
         @error = "<ul class=\"errors\">" + @errors.collect { |e| "<li>#{e}</li>" }.join + "</ul>"
         r :zone, @zone.origin[0..-1]
       else
-puts "-- #{address}"
         create_record(z,name,type,ttl,address)
         redirect "/control/dns/#{@zone.key}"
       end
