@@ -37,13 +37,8 @@ module AWS
       login_required
       z, @zone = get_zone_by_key(params[:captures].first)
 
-      if params[:name] && params[:type] && params[:address]
-        delete_record(z,params[:name],params[:type],params[:address])
-        redirect "/control/dns/#{@zone.key}"
-      else
-        delete_zone(z)
-        redirect '/control/dns'
-      end
+      delete_zone(z)
+      redirect '/control/dns'
     end
 
     get %r{^\/dns\/(\w+)$} do
@@ -55,43 +50,31 @@ module AWS
     post %r{^\/dns\/(\w+)$} do
       login_required
       z, @zone = get_zone_by_key(params[:captures].first)
+      records = []
+      dont_save = false
+      @zone.records.each { |r| records << r if r.type == "SOA" }
+      @zone = @zone.clone
 
-      name = params[:name]
-      ttl = nil
-      type = nil
-      address = params[:value]
-      @errors = []
-
-      if name !~ /^(|\*|\*.[-\w\d\.]+|[-\w\d\.]+|\s*\@|\.|[-\w\d]+(((\.[-\w\d]+)*)\.?)?)$/
-        @errors << "invalid name"
-      end
-      if address !~ /^([-\w\d]+((\.[-\w\d]+)*)?\.?)$/
-        @errors << "invalid value"
-      end
-      if params[:ttl] =~ /^([0-9]+)$/
-        ttl = $1
-      else
-        @errors << "ttl must be a number"
-      end
-      if ALLOWED_TYPES.include?(params[:type])
-        type = params[:type]
-      else
-        @errors << "Invalid Type"
-      end
-      if type == "MX"
-        if params[:priority] =~ /^([0-9]+)$/
-          address = "#{$1} #{address}"
-        else
-          @errors << "priority must be a number"
+      params['records'].each do |type,list|
+        list.each do |key,value|
+          unless value[:name].empty? && value[:address].empty?
+            record = DNSServer::ZoneFileRecord.new(value.merge({ :type => type, :class => "IN" }),@zone)
+            dont_save = true unless record.errors.empty?
+            records << record
+          end
         end
       end
-      unless @errors.empty?
-        @error = "<ul class=\"errors\">" + @errors.collect { |e| "<li>#{e}</li>" }.join + "</ul>"
-        r :zone, @zone.origin[0..-1]
+      @zone.records = records.sort { |x,y| "#{DNSServer::ZoneFile::SORT_ORDER[x.type] || 9}#{x.name}" <=> "#{DNSServer::ZoneFile::SORT_ORDER[y.type] || 9}#{y.name}" }
+
+      if dont_save
+        @error = "<ul class=\"errors\"><li>One or more records is invalid.</li></ul>"
+        r :zone, z[0..-2]
       else
-        create_record(z,name,type,ttl,address)
+        DNSServer.zonemap[z] = @zone
+        @zone.save()
         redirect "/control/dns/#{@zone.key}"
       end
+
     end
 
   end
@@ -131,49 +114,94 @@ __END__
   %input#newbucket{ :type => "submit", :value => "Create", :name => "newzone" }
 
 @@ zone
-%table
-  %thead
-    %tr
-      %th Name
-      %th TTL
-      %th Type
-      %th Value
-      %th Actions
-  %tbody
-    - @zone.records.each do |record|
-      - unless record.type == "SOA"
-        %tr
-          %th= record.name
-          %td= record.ttl
-          %td= record.type
-          %td= record.address
-          %td
-            %a{ :href => "/control/dns/#{@zone.key}/delete?name=#{record.name}&type=#{record.type}&address=#{record.address}", :onClick => POST, :title => "Delete Record #{record.name} IN #{record.type} #{record.address}" } Delete
-%h3 Add Record
 %form.create{ :method => "post" }
+  - unused_types = @zone.origin =~ /ARPA.$/i ? ['PTR'] : ALLOWED_TYPES.clone
+  - unused_types.delete('PTR') if @zone.origin !~ /ARPA.$/i
   - if @error
-    %span{ :style => "color:#cc0000" }= @error
-  %div.required
-    %label{ :for => "name" } Name
-    %input{ :name => "name", :type => "text", :value => @zone.origin }
-  %div.required
-    %label{ :for => "type" } Type
-    %select{ :name => "type", :onchange => "if (this.value == 'MX') { $('ttl_div').style.display = 'block' } else { $('ttl_div').style.display = 'none' }" }
-      %option{} A
-      %option{} AAAA
-      %option{} CNAME
-      %option{} MX
-      %option{} NS
-      %option{} TXT
-      %option{} PTR
-  %div.required{ :style => "float:left" }
-    %label{ :for => "ttl" } TTL
-    %input{ :name => "ttl", :type => "text", :value => @zone.ttl, :style => "width:7em" }
-  %div.required{ :style => "float:left;margin-left:20px;display:none", :id => "ttl_div" }
-    %label{ :for => "priority" } Priority
-    %input{ :name => "priority", :type => "text", :value => "10", :style => "width:4em" }
-  %div{ :style => "clear:both" }
-  %div.required
-    %label{ :for => "value" } Address/Value
-    %input{ :name => "value", :type => "text", :value => "" }
-  %input#newbucket{ :type => "submit", :value => "Create", :name => "newrecord" }
+    = preserve @error
+  - @zone.get_record_groups.each do |records|
+    - unused_types.delete(records.first.type)
+    - unless records.first.type == "SOA"
+      %h4= records.first.type
+      %table.noborder{ :style => "margin-bottom:1em" }
+        %thead
+          %tr
+            %th{ :style => "width:11em" } Name
+            %th TTL
+            - if records.first.type == "MX"
+              %th Priority
+            %th{ :style => "width:11em" } Value
+            %th{ :style => "width:3em" } 
+        %tbody
+          - count = 0
+          - records.each do |record|
+            %tr{ :style => record.errors.empty? ? "" : "background-color:#cc0000" }
+              %td
+                %input{ :name => "records[#{record.type}][#{count}][name]", :type => "text", :value => record.name }
+              %td
+                %input{ :name => "records[#{record.type}][#{count}][ttl]", :type => "text", :value => record.ttl, :style => "width:6em" }
+              - if record.type == "MX"
+                %td
+                  %input{ :name => "records[#{record.type}][#{count}][priority]", :type => "text", :value => record.priority, :style => "width:6em" }
+              %td
+                %input{ :name => "records[#{record.type}][#{count}][address]", :type => "text", :value => record.address }
+              %td{ :align => "center" }
+                %a{ :href => "javascript:///", :onclick => "this.parentNode.parentNode.remove();" }
+                  %img{ :src => "/control/delete.png", :text => "Delete #{record.name} IN #{record.type} #{record.address}", :border => 0 }
+            - count += 1
+          %tr
+            %td
+              %input{ :name => "records[#{records.first.type}][#{count}][name]", :type => "text", :value => "" }
+            %td
+              %input{ :name => "records[#{records.first.type}][#{count}][ttl]", :type => "text", :value => "", :style => "width:6em" }
+            - if records.first.type == "MX"
+              %td
+                %input{ :name => "records[#{records.first.type}][#{count}][priority]", :type => "text", :value => "", :style => "width:6em" }
+            %td
+              %input{ :name => "records[#{records.first.type}][#{count}][address]", :type => "text", :value => "" }
+            %td
+              %a{ :href => "javascript:///", :onclick => "addRow(this,#{count});" }
+                %img{ :src => "/control/add.png", :text => "", :border => 0 }
+  - unused_types.each do |type|
+    %h4= type
+    %table.noborder{ :style => "margin-bottom:1em" }
+      %thead
+        %tr
+          %th{ :style => "width:11em" } Name
+          %th TTL
+          - if type == "MX"
+            %th Priority
+          %th{ :style => "width:11em" } Value
+          %th{ :style => "width:3em" } 
+      %tbody
+        %tr
+          %td
+            %input{ :name => "records[#{type}][0][name]", :type => "text", :value => "" }
+          %td
+            %input{ :name => "records[#{type}][0][ttl]", :type => "text", :value => "", :style => "width:6em" }
+          - if type == "MX"
+            %td
+              %input{ :name => "records[#{type}][0][priority]", :type => "text", :value => "", :style => "width:6em" }
+          %td
+            %input{ :name => "records[#{type}][0][address]", :type => "text", :value => "" }
+          %td
+            %a{ :href => "javascript:///", :onclick => "addRow(this,0);" }
+              %img{ :src => "/control/add.png", :text => "", :border => 0 }
+ 
+  %input#updatezone{ :type => "submit", :value => "Update Zone", :name => "updatezone" }
+:javascript
+  function addRow(obj,row_count)
+  {
+    new_row = obj.parentNode.parentNode.cloneNode(true);
+    ele = new_row.getElementsByTagName("input")
+    for (var i = 0; i < ele.length; i++)
+    {
+      ele[i].name = ele[i].name.replace(row_count,row_count+1);
+      ele[i].value = null;
+    }
+   
+    obj.innerHTML = "<img src=\"/control/delete.png\" border=\"0\" /";
+    obj.onclick = function() { this.parentNode.parentNode.remove(); }
+    tbody = obj.parentNode.parentNode.parentNode;
+    tbody.appendChild(new_row);
+  }
