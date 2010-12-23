@@ -222,6 +222,8 @@ class WebAPI < Sinatra::Base
                       x.Value "#{value[:record].ns} #{value[:record].email} #{value[:record].address.join(' ')}"
                     when "MX"
                       x.Value "#{value[:record].priority} #{expanded_address(address,z)}"
+                    when "SRV"
+                      x.Value "#{value[:record].priority} #{value[:record].weight} #{value[:record].port} #{expanded_address(address,z)}"
                     else
                       x.Value expanded_address(address,z)
                     end

@@ -2,7 +2,7 @@ module AWS
 
   class Admin < Sinatra::Base
 
-    ALLOWED_TYPES = ['A','AAAA','CNAME','MX','NS','PTR','TXT']
+    ALLOWED_TYPES = ['A','AAAA','CNAME','MX','NS','PTR','TXT','SRV']
 
     set :sessions, :on
     enable :inline_templates
@@ -128,8 +128,11 @@ __END__
           %tr
             %th{ :style => "width:11em" } Name
             %th TTL
-            - if records.first.type == "MX"
+            - if records.first.type == "MX" || records.first.type == "SRV"
               %th Priority
+            - if records.first.type == "SRV"
+              %th Wt.
+              %th Port
             %th{ :style => "width:11em" } Value
             %th{ :style => "width:3em" } 
         %tbody
@@ -140,9 +143,14 @@ __END__
                 %input{ :name => "records[#{record.type}][#{count}][name]", :type => "text", :value => record.name }
               %td
                 %input{ :name => "records[#{record.type}][#{count}][ttl]", :type => "text", :value => record.ttl, :style => "width:6em" }
-              - if record.type == "MX"
+              - if record.type == "MX" || record.type == "SRV"
                 %td
-                  %input{ :name => "records[#{record.type}][#{count}][priority]", :type => "text", :value => record.priority, :style => "width:6em" }
+                  %input{ :name => "records[#{record.type}][#{count}][priority]", :type => "text", :value => record.priority, :style => "width:4em" }
+              - if record.type == "SRV"
+                %td
+                  %input{ :name => "records[#{record.type}][#{count}][weight]", :type => "text", :value => record.weight, :style => "width:3em" }
+                %td
+                  %input{ :name => "records[#{record.type}][#{count}][port]", :type => "text", :value => record.port, :style => "width:4em" }
               %td
                 %input{ :name => "records[#{record.type}][#{count}][address]", :type => "text", :value => record.address }
               %td{ :align => "center" }
@@ -154,9 +162,14 @@ __END__
               %input{ :name => "records[#{records.first.type}][#{count}][name]", :type => "text", :value => "" }
             %td
               %input{ :name => "records[#{records.first.type}][#{count}][ttl]", :type => "text", :value => "", :style => "width:6em" }
-            - if records.first.type == "MX"
+            - if records.first.type == "MX" || records.first.type == "SRV"
               %td
-                %input{ :name => "records[#{records.first.type}][#{count}][priority]", :type => "text", :value => "", :style => "width:6em" }
+                %input{ :name => "records[#{records.first.type}][#{count}][priority]", :type => "text", :value => "", :style => "width:4em" }
+            - if records.first.type == "SRV"
+              %td
+                %input{ :name => "records[#{records.first.type}][#{count}][weight]", :type => "text", :value => "", :style => "width:3em" }
+              %td
+                %input{ :name => "records[#{records.first.type}][#{count}][port]", :type => "text", :value => "", :style => "width:4em" }
             %td
               %input{ :name => "records[#{records.first.type}][#{count}][address]", :type => "text", :value => "" }
             %td
@@ -169,8 +182,11 @@ __END__
         %tr
           %th{ :style => "width:11em" } Name
           %th TTL
-          - if type == "MX"
+          - if type == "MX" || type == "SRV"
             %th Priority
+          - if type == "SRV"
+            %th Wt.
+            %th Port
           %th{ :style => "width:11em" } Value
           %th{ :style => "width:3em" } 
       %tbody
@@ -179,9 +195,14 @@ __END__
             %input{ :name => "records[#{type}][0][name]", :type => "text", :value => "" }
           %td
             %input{ :name => "records[#{type}][0][ttl]", :type => "text", :value => "", :style => "width:6em" }
-          - if type == "MX"
+          - if type == "MX" || type == "SRV"
             %td
-              %input{ :name => "records[#{type}][0][priority]", :type => "text", :value => "", :style => "width:6em" }
+              %input{ :name => "records[#{type}][0][priority]", :type => "text", :value => "", :style => "width:4em" }
+          - if type == "SRV"
+            %td
+              %input{ :name => "records[#{type}][0][weight]", :type => "text", :value => "", :style => "width:3em" }
+            %td
+              %input{ :name => "records[#{type}][0][port]", :type => "text", :value => "", :style => "width:4em" }
           %td
             %input{ :name => "records[#{type}][0][address]", :type => "text", :value => "" }
           %td
